@@ -1,18 +1,17 @@
-import sys
+"""Performance benchmarking for YOLOv8 cat detection model"""
 import time
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-
-# Project root setup
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
-
 from ultralytics import YOLO
 
-MODEL_PATH = PROJECT_ROOT / "cat_yolov8n.pt"
+from src.utils.config import get_project_root
+from src.utils.device import print_device_info
+
+# Configuration
+PROJECT_ROOT = get_project_root()
+MODEL_PATH = PROJECT_ROOT / "models" / "trained" / "cat_yolov8n.pt"
 EXPORTS_DIR = PROJECT_ROOT / "data" / "exports"
 EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -23,13 +22,17 @@ BATCH_SIZES = [1, 2, 4, 8, 16]
 def run_benchmark(device_str: str):
     """Measures latency and FPS across different batch sizes for a given device."""
     if not MODEL_PATH.exists():
-        print(f"[Error] Model weights not found at: {MODEL_PATH}")
-        sys.exit(1)
+        print(f"[ERROR] Model weights not found: {MODEL_PATH}")
+        print(f"        Please train the model first: python main.py train")
+        return None
 
     model = YOLO(str(MODEL_PATH))
     results = {"batch_sizes": BATCH_SIZES, "latencies_ms": [], "fps": []}
 
-    print(f"\n--- Running Benchmark on: {device_str.upper()} ---")
+    device_name = "GPU (CUDA)" if device_str == "0" else "CPU"
+    print(f"\n{'='*50}")
+    print(f"Running Benchmark on: {device_name}")
+    print("="*50)
 
     for batch_size in BATCH_SIZES:
         # Dummy image tensor matching YOLO input shape (Batch, Channels, Height, Width)
@@ -55,12 +58,16 @@ def run_benchmark(device_str: str):
         results["latencies_ms"].append(avg_latency_ms)
         results["fps"].append(fps)
 
-        print(f"Batch Size: {batch_size:2d} | Avg Latency: {avg_latency_ms:6.2f} ms | Throughput: {fps:6.2f} FPS")
+        print(f"Batch {batch_size:2d}: {avg_latency_ms:6.2f} ms/batch  |  {fps:6.2f} FPS")
 
     return results
 
 def generate_benchmark_plots(cpu_res, gpu_res=None):
     """Generates and saves performance visualization plots."""
+    if cpu_res is None:
+        print("[ERROR] No benchmark results to plot")
+        return
+        
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -91,18 +98,31 @@ def generate_benchmark_plots(cpu_res, gpu_res=None):
     plt.tight_layout()
     output_path = EXPORTS_DIR / "benchmark_results.png"
     plt.savefig(output_path, dpi=300)
-    print(f"\n[✓] Benchmark chart successfully saved to: {output_path}")
+    plt.close()
+    print(f"\n[✓] Benchmark plots saved to: {output_path}")
 
 def main():
+    print("=== Performance Benchmark ===")
+    print(f"Model: {MODEL_PATH.name}")
+    print_device_info()
+    
     cpu_results = run_benchmark(device_str="cpu")
+    
+    if cpu_results is None:
+        return
     
     gpu_results = None
     if torch.cuda.is_available():
         gpu_results = run_benchmark(device_str="0")
     else:
-        print("\n[Info] CUDA GPU not available. Skipping GPU benchmark.")
+        print("\n[INFO] CUDA not available. Skipping GPU benchmark.")
 
     generate_benchmark_plots(cpu_results, gpu_results)
+    
+    print("\n[✓] Benchmark completed successfully!")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[!] Benchmark interrupted by user")
