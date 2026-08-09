@@ -1,0 +1,59 @@
+name: Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create required directories
+        run: |
+          mkdir -p models/trained
+          mkdir -p logs
+          sudo mkdir -p /mnt/usb
+        continue-on-error: true
+
+      - name: Stop existing container
+        run: |
+          docker compose down || true
+        continue-on-error: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t cat-detector:latest .
+
+      - name: Start container
+        env:
+          WEBHOOK_URL: ${{ secrets.HA_WEBHOOK_URL }}
+          RTSP_URL: ${{ secrets.RTSP_URL }}
+          DETECTION_CONFIDENCE: ${{ secrets.DETECTION_CONFIDENCE }}
+        run: |
+          docker compose up -d
+
+      - name: Wait for container to start
+        run: |
+          sleep 5
+
+      - name: Check container status
+        run: |
+          docker ps | grep cat_detector
+          echo "--- Container Logs ---"
+          docker logs cat_detector --tail 50
+
+      - name: Cleanup old images
+        run: |
+          docker image prune -f
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "Container: cat_detector"
+          echo "Status: $(docker inspect -f '{{.State.Status}}' cat_detector)"
+          echo "Started at: $(docker inspect -f '{{.State.StartedAt}}' cat_detector)"

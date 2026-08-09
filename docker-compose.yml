@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  cat-detector:
+    build: .
+    container_name: cat_detector
+    restart: unless-stopped
+    
+    # Privileged mode for camera access (optional, if needed)
+    # privileged: true
+    
+    # Camera device mapping (for USB webcam)
+    devices:
+      - /dev/video0:/dev/video0
+    
+    # Volumes
+    volumes:
+      # Trained model
+      - ./models:/app/models
+      # USB stick for images
+      - /mnt/usb:/mnt/usb
+      # Config and logs
+      - ./logs:/app/logs
+    
+    # Environment Variables
+    environment:
+      - RTSP_URL=${RTSP_URL:-0}
+      - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.30}
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - PYTHONUNBUFFERED=1
+    
+    # Network mode host for local camera access
+    network_mode: host
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
