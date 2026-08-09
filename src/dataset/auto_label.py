@@ -1,18 +1,20 @@
-import os
+"""Automatic labeling of cat images using YOLOv8m pretrained model"""
 import shutil
 import random
 from pathlib import Path
 from ultralytics import YOLO
 
-# Define paths (relative to project root)
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from src.utils.config import get_project_root
+
+# Configuration
+PROJECT_ROOT = get_project_root()
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 ANNOTATED_DIR = PROJECT_ROOT / "data" / "annotated"
 EXPORTS_DIR = PROJECT_ROOT / "data" / "exports"
 
-# Training/Validation split ratio (80% train, 20% val)
-TRAIN_RATIO = 0.8
-COCO_CAT_CLASS_ID = 15  # COCO Class-ID for 'cat'
+TRAIN_RATIO = 0.8  # 80% train, 20% validation
+COCO_CAT_CLASS_ID = 15
+CONFIDENCE_THRESHOLD = 0.10
 
 def setup_directories():
     """Creates the required folder structure."""
@@ -23,29 +25,39 @@ def setup_directories():
 
 def create_data_yaml():
     """Generates the data.yaml file required for YOLO training."""
-    yaml_content = f"""path: {ANNOTATED_DIR.resolve()}
+    yaml_content = f"""# Dataset configuration for YOLO training
+path: {ANNOTATED_DIR.resolve()}
 train: train/images
 val: val/images
 
 names:
   0: cat
+
+nc: 1  # number of classes
 """
     yaml_path = ANNOTATED_DIR / "data.yaml"
     with open(yaml_path, "w", encoding="utf-8") as f:
         f.write(yaml_content)
+    print(f"[✓] Created data.yaml at {yaml_path}")
 
 def main():
+    print("=== Automatic Labeling Process ===")
+    print(f"Input directory:  {RAW_DIR}")
+    print(f"Output directory: {ANNOTATED_DIR}")
+    print(f"Train/Val split:  {TRAIN_RATIO:.0%} / {1-TRAIN_RATIO:.0%}\n")
+    
     setup_directories()
     create_data_yaml()
 
-    print("Loading YOLOv8m model...")
+    print("\nLoading YOLOv8m model for auto-labeling...")
     model = YOLO("yolov8m.pt")
 
-    # Collect all image files from data/raw
-    image_paths = list(RAW_DIR.glob("*.jpg")) + list(RAW_DIR.glob("*.jpeg"))
+    # Collect all image files
+    image_paths = list(RAW_DIR.glob("*.jpg")) + list(RAW_DIR.glob("*.jpeg")) + list(RAW_DIR.glob("*.png"))
     
     if not image_paths:
-        print(f"No images found in {RAW_DIR}.")
+        print(f"[!] No images found in {RAW_DIR}")
+        print("    Please run data collection first: python main.py collect")
         return
 
     print(f"Found {len(image_paths)} images. Starting auto-labeling...\n")
@@ -65,9 +77,10 @@ def main():
     preview_saved = False
 
     for split, paths in datasets.items():
+        print(f"\nProcessing {split} set ({len(paths)} images)...")
         for img_path in paths:
             # Run inference
-            results = model(img_path, conf=0.10, verbose=False)[0]
+            results = model(img_path, conf=CONFIDENCE_THRESHOLD, verbose=False)[0]
             
             label_lines = []
             cats_in_image = 0
@@ -81,19 +94,16 @@ def main():
                     label_lines.append(f"0 {x:.6f} {y:.6f} {w:.6f} {h:.6f}")
                     cats_in_image += 1
 
-            # Terminal feedback per image
+            # Track statistics
             if cats_in_image > 0:
                 images_with_cats += 1
                 cat_detected_total += cats_in_image
-                print(f"[✓] {img_path.name}: {cats_in_image} cat(s) detected.")
-            else:
-                print(f"[ ] {img_path.name}: No cat detected.")
 
-            # Save the first detection as a preview image with bounding boxes
+            # Save preview of first detection
             if cats_in_image > 0 and not preview_saved:
                 preview_path = EXPORTS_DIR / "preview_detection.jpg"
                 results.save(filename=str(preview_path))
-                print(f"  └─> Saved detection preview image to: {preview_path}")
+                print(f"  [✓] Saved preview image to: {preview_path}")
                 preview_saved = True
 
             # Copy image to target path
@@ -107,11 +117,16 @@ def main():
 
             processed_count += 1
 
-    print("\n--- SUMMARY ---")
-    print(f"Total images processed: {processed_count}")
-    print(f"Images with cats:       {images_with_cats}")
-    print(f"Total cats detected:    {cat_detected_total}")
-    print(f"Dataset stored at:      {ANNOTATED_DIR}")
+    print("\n" + "="*50)
+    print("AUTO-LABELING SUMMARY")
+    print("="*50)
+    print(f"Total images processed:  {processed_count}")
+    print(f"Images with cats:        {images_with_cats} ({images_with_cats/processed_count*100:.1f}%)")
+    print(f"Total cats detected:     {cat_detected_total}")
+    print(f"Average cats per image:  {cat_detected_total/images_with_cats if images_with_cats > 0 else 0:.2f}")
+    print(f"\nDataset location: {ANNOTATED_DIR}")
+    print(f"Config file:      {ANNOTATED_DIR / 'data.yaml'}")
+    print("="*50)
 
 if __name__ == "__main__":
     main()
