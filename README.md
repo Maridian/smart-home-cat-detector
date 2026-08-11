@@ -1,6 +1,6 @@
 # Smart Home Cat Detector 🐱
 
-A streamlined Deep Learning system for real-time cat detection using YOLOv8, featuring automated data collection, training, validation, benchmarking, and live detection on RTSP streams or webcams.
+A streamlined Deep Learning system for real-time cat detection using YOLOv8, featuring automated data collection, training, validation, benchmarking, and live detection with Telegram notifications.
 
 ## ✨ Features
 
@@ -10,6 +10,7 @@ A streamlined Deep Learning system for real-time cat detection using YOLOv8, fea
 - **Model Validation**: Evaluate model performance with detailed metrics
 - **Performance Benchmarking**: Measure latency and FPS on CPU and GPU
 - **Live Detection**: Real-time cat detection on RTSP streams or webcam
+- **Telegram Notifications**: Get instant notifications with images when cats are detected
 - **Centralized CLI**: Single entry point for all operations
 
 ## 📋 Requirements
@@ -17,6 +18,7 @@ A streamlined Deep Learning system for real-time cat detection using YOLOv8, fea
 - Python 3.8+
 - CUDA-capable GPU (optional, for faster training and inference)
 - RTSP camera or webcam
+- Telegram account (for notifications)
 
 ## 🚀 Quick Start
 
@@ -45,17 +47,33 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```bash
-# RTSP camera URL (or use 0 for webcam)
-RTSP_URL=rtsp://username:password@192.168.1.100:554/stream1
+# Camera source (0 for webcam, or RTSP URL)
+RTSP_URL=0
 
-# Data collection settings
-OUTPUT_DIR=data/raw
-SAVE_INTERVAL=0.5
-CONFIDENCE_THRESHOLD=0.1
+# Detection confidence threshold (0.0 - 1.0)
+DETECTION_CONFIDENCE=0.60
 
-# Detection settings
-DETECTION_CONFIDENCE=0.30
+# Telegram Bot Token (get from @BotFather)
+TELEGRAM_BOT_TOKEN=your_token_here
+
+# Telegram Chat ID (get from bot API)
+TELEGRAM_CHAT_ID=your_chat_id_here
+
+# Path where detection images are saved
+IMAGE_SAVE_PATH=./detections
+
+# Cooldown between notifications (seconds)
+NOTIFICATION_COOLDOWN=60
 ```
+
+### 3. Setup Telegram Bot
+
+1. Open Telegram and search for **@BotFather**
+2. Send `/newbot` and follow instructions
+3. Copy the **Bot Token** to your `.env`
+4. Send a message to your bot
+5. Get your **Chat ID** from: `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
+6. Add the Chat ID to your `.env`
 
 ## 📖 Usage
 
@@ -131,8 +149,20 @@ python main.py live
 ```
 
 - Displays live video with bounding boxes
-- Shows detection status overlay
+- Sends Telegram notification with image when cat is detected
+- Respects cooldown period to prevent spam
 - Press 'q' to quit
+
+#### 7. Test Notifications
+Test Telegram without live stream:
+
+```bash
+python main.py live --debug
+```
+
+- Sends a test notification to verify setup
+- No camera/stream required
+- Perfect for testing your configuration
 
 ## 📁 Project Structure
 
@@ -188,19 +218,24 @@ smart-home-cat-detector/
 ## 🔄 Complete Workflow
 
 ```bash
-# 1. Collect training images
+# 1. Setup Telegram bot (see Configuration section)
+
+# 2. Test notifications
+python main.py live --debug
+
+# 3. Collect training images (optional - if using pretrained model, skip to step 6)
 python main.py collect
 
-# 2. Generate labels automatically
+# 4. Generate labels automatically
 python main.py label
 
-# 3. Train the model
+# 5. Train the model
 python main.py train
 
-# 4. Validate performance
+# 6. Validate performance (optional)
 python main.py validate
 
-# 5. Run live detection
+# 7. Run live detection
 python main.py live
 
 # Optional: Benchmark performance
@@ -224,16 +259,37 @@ model.export(format='onnx', imgsz=640)
 model.export(format='engine', device=0, half=True)
 ```
 
-## 🏠 Smart Home Integration
+## 📱 Telegram Notifications
 
-Integrate with your smart home system:
+When a cat is detected, you receive:
 
-- **MQTT**: Publish detection events to a broker
-- **REST API**: Wrap detector in FastAPI
-- **Home Assistant**: Create automation triggers
-- **Node-RED**: Connect to flows
+- 🐱 **Instant notification** on your phone
+- 📸 **Image with bounding box** showing the detection
+- 📊 **Confidence score** (e.g., 0.85)
+- ⏰ **Timestamp** of detection
+
+### Notification Cooldown
+
+To prevent spam when a cat stays in view, notifications respect a cooldown period (default: 60 seconds). Adjust in `.env`:
+
+```bash
+NOTIFICATION_COOLDOWN=300  # 5 minutes
+```
 
 ## 🐛 Troubleshooting
+
+### Telegram Not Working
+
+```bash
+# Test your bot token
+curl https://api.telegram.org/bot<YOUR_TOKEN>/getMe
+
+# Verify Chat ID
+curl https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+
+# Test notification
+python main.py live --debug
+```
 
 ### RTSP Connection Issues
 
@@ -276,10 +332,25 @@ IMG_SIZE = 640       # Image size for training
 
 ### Detection Confidence
 
-Adjust in `.env` or code:
+Adjust in `.env`:
 
-```python
-CONF_THRESHOLD = 0.25  # Lower = more detections, more false positives
+```bash
+DETECTION_CONFIDENCE=0.25  # Lower = more detections, more false positives
+```
+
+### Image Storage Path
+
+Configure where detection images are saved:
+
+```bash
+# Raspberry Pi with USB drive
+IMAGE_SAVE_PATH=/mnt/usb/cat_detections
+
+# Windows
+IMAGE_SAVE_PATH=C:/Users/YourName/cat_detections
+
+# Relative path (in project folder)
+IMAGE_SAVE_PATH=./detections
 ```
 
 ## 📊 Performance Metrics

@@ -1,8 +1,9 @@
-"""Live cat detection on RTSP stream or webcam with Home Assistant webhook notifications"""
+"""Live cat detection on RTSP stream or webcam with Telegram notifications"""
 import os
 import sys
 import time
 import cv2
+import numpy as np
 import requests
 import base64
 import io
@@ -38,36 +39,14 @@ if not MODEL_PATH.exists():
 
 RTSP_URL = os.getenv("RTSP_URL", "0")
 CONF_THRESHOLD = float(os.getenv("DETECTION_CONFIDENCE", "0.30"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 IMAGE_SAVE_PATH = Path(os.getenv("IMAGE_SAVE_PATH", "/mnt/usb/cat_detections"))
 NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "60"))  # seconds
-HA_BASE_URL = os.getenv("HA_BASE_URL", "http://homeassistant.local:8123")  # Home Assistant URL
+
+# Telegram Config
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
 DEVICE = get_device()
-
-# Detect if running on Raspberry Pi
-try:
-    IS_RASPBERRY_PI = os.path.exists("/sys/firmware/devicetree/base/model") and \
-                      "Raspberry Pi" in open("/sys/firmware/devicetree/base/model", "r").read()
-except:
-    IS_RASPBERRY_PI = False
-
-def get_small_base64(image_path):
-    """Compress and encode image to base64 with reduced size"""
-    try:
-        with Image.open(image_path) as img:
-            # Reduce size
-            img.thumbnail((640, 480))
-            
-            # Compress to buffer
-            buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=60)
-            
-            # Encode to base64
-            return base64.b64encode(buffer.getvalue()).decode("utf-8")
-    except Exception as e:
-        print(f"[ERROR] Failed to compress image: {e}")
-        return None
-
 
 def save_detection_image(frame, boxes, confidence):
     """Save detection image to USB stick and return the file path"""
@@ -93,99 +72,104 @@ def save_detection_image(frame, boxes, confidence):
         return None
 
 
-def send_webhook_notification(image_path, confidence):
-    """Send webhook notification to Home Assistant
-    
-    On Raspberry Pi: Sends image path/URL for Home Assistant to access locally
-    On other systems: Sends compressed base64 image
-    """
-    if not WEBHOOK_URL:
-        print("[!] Webhook disabled - no WEBHOOK_URL set")
+def send_telegram_notification(image_path, confidence):
+    """Send notification via Telegram with image"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[!] Telegram disabled - TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set")
         return False
     
     try:
-        print(f"[→] Sending webhook to {WEBHOOK_URL}...")
-        print(f"[→] Running on: {'Raspberry Pi' if IS_RASPBERRY_PI else 'PC/Other'}")
+        print(f"[→] Sending Telegram notification...")
         
-        # Prepare data
-        data = {
-            'message': 'Cat detected!',
-            'confidence': f"{confidence:.2f}",
-            'timestamp': datetime.now().isoformat(),
-            'image_path': image_path,
-            'filename': os.path.basename(image_path) if image_path else None
-        }
+        # Send photo with caption
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
         
-        # Handle image based on platform
-        if image_path and os.path.exists(image_path):
-            if IS_RASPBERRY_PI:
-                # Raspberry Pi: Send local path/URL
-                print(f"[→] Using local image path for HA: {os.path.basename(image_path)}")
-                
-                # Convert path to Home Assistant accessible path
-                # Assumes USB stick is mounted and accessible by HA
-                relative_path = image_path.replace('/mnt/usb/cat_detections/', '')
-                ha_image_url = f"{HA_BASE_URL}/local/cat_detections/{relative_path}"
-                
-                data['image_url'] = ha_image_url
-                data['local_path'] = image_path
-                print(f"[✓] Image URL: {ha_image_url}")
-                
-            else:
-                # PC/Other: Send compressed base64 image
-                print(f"[→] Compressing and encoding image: {os.path.basename(image_path)}")
-                
-                # Get original size
-                original_size = os.path.getsize(image_path)
-                
-                # Compress and encode
-                image_base64 = get_small_base64(image_path)
-                
-                if image_base64:
-                    compressed_size = len(image_base64)
-                    data['image_base64'] = image_base64
-                    print(f"[✓] Image compressed: {original_size} bytes → {compressed_size} bytes (base64)")
-                else:
-                    print(f"[!] Failed to compress image")
-        else:
-            print(f"[!] No image found at: {image_path}")
+        caption = f"🐱 Katze erkannt!\nConfidence: {confidence:.2f}\nTime: {datetime.now().strftime('%H:%M:%S')}"
         
-        # Send as JSON
-        response = requests.post(WEBHOOK_URL, json=data, timeout=10)
-        
-        print(f"[→] Response: {response.status_code}")
+        with open(image_path, 'rb') as photo:
+            files = {'photo': photo}
+            data = {
+                'chat_id': TELEGRAM_CHAT_ID,
+                'caption': caption
+            }
+            response = requests.post(url, files=files, data=data, timeout=10)
         
         if response.status_code == 200:
-            print(f"[✓] Webhook notification sent successfully")
+            print(f"[✓] Telegram notification sent successfully")
             return True
         else:
-            print(f"[!] Webhook failed with status {response.status_code}")
+            print(f"[!] Telegram failed with status {response.status_code}")
             print(f"    Response: {response.text[:200]}")
             return False
             
-    except requests.exceptions.Timeout:
-        print(f"[ERROR] Webhook timeout after 10 seconds")
-        return False
-    except requests.exceptions.ConnectionError as e:
-        print(f"[ERROR] Connection failed: {e}")
-        return False
     except Exception as e:
-        print(f"[ERROR] Failed to send webhook: {type(e).__name__}: {e}")
+        print(f"[ERROR] Failed to send Telegram: {type(e).__name__}: {e}")
         return False
 
 
-def main():
+def debug_test():
+    """Test notification with a fake detection"""
+    print("\n=== 🐛 DEBUG MODE: Notification Test ===")
+    print(f"Telegram:    {TELEGRAM_BOT_TOKEN[:20]}..." if TELEGRAM_BOT_TOKEN else "Not configured")
+    print(f"Images:      {IMAGE_SAVE_PATH}\n")
+    
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[ERROR] Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env")
+        return
+    
+    # Create a test image
+    print("[→] Creating test image...")
+    test_frame = cv2.imread(str(PROJECT_ROOT / "data" / "raw" / "cats" / "cat_001.jpg"))
+    
+    if test_frame is None:
+        # Create a dummy image if no test image exists
+        print("[!] No test image found, creating dummy image...")
+        test_frame = 255 * np.ones((480, 640, 3), dtype=np.uint8)
+        cv2.putText(test_frame, "TEST CAT DETECTION", (150, 240), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 0, 0), 3)
+        cv2.rectangle(test_frame, (200, 150), (440, 350), (0, 255, 0), 3)
+    
+            
+    # Save test image
+    IMAGE_SAVE_PATH.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    test_image_path = IMAGE_SAVE_PATH / f"test_{timestamp}_conf0.95.jpg"
+    cv2.imwrite(str(test_image_path), test_frame)
+    print(f"[✓] Test image created: {test_image_path.name}")
+    
+        # Send test notification
+    print("\n[→] Sending test notification...")
+    test_confidence = 0.95
+    
+    success = send_telegram_notification(str(test_image_path), test_confidence)
+    
+    if success:
+        print("\n[✓] ✅ DEBUG TEST SUCCESSFUL!")
+        print("    Check your Telegram app for the notification.")
+    else:
+        print("\n[✗] ❌ DEBUG TEST FAILED!")
+        print("    Check the error messages above.")
+    
+    print(f"\n[i] Test image saved at: {test_image_path}")
+
+
+def main(debug=False):
     print("=== Live Cat Detection ===")
     print(f"Model:       {MODEL_PATH.name}")
     print(f"Confidence:  {CONF_THRESHOLD}")
     print(f"Stream:      {RTSP_URL}")
-    print(f"Platform:    {'Raspberry Pi 🥧' if IS_RASPBERRY_PI else 'PC/Other 💻'}")
-    print(f"Webhook:     {'Enabled ✓' if WEBHOOK_URL else 'Disabled ✗'}")
-    if WEBHOOK_URL:
-        print(f"  URL:       {WEBHOOK_URL}")
+    print(f"Debug Mode:  {'🐛 ENABLED' if debug else 'Disabled'}")
+    print(f"Telegram:    {'Enabled ✓' if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID else 'Disabled ✗'}")
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        print(f"  Chat ID:   {TELEGRAM_CHAT_ID}")
     print(f"Images:      {IMAGE_SAVE_PATH}")
     print(f"Cooldown:    {NOTIFICATION_COOLDOWN}s")
     print_device_info()
+    
+        # Run debug mode if enabled
+    if debug:
+        debug_test()
+        return
     
     if not MODEL_PATH.exists():
         print(f"[ERROR] Model not found: {MODEL_PATH}")
@@ -251,8 +235,8 @@ def main():
                 # Save image
                 image_path = save_detection_image(annotated_frame, results.boxes, highest_conf)
                 
-                # Send webhook
-                if send_webhook_notification(image_path, highest_conf):
+                                # Send Telegram notification
+                if send_telegram_notification(image_path, highest_conf):
                     last_notification_time = current_time
             # Removed cooldown message to reduce spam
                 

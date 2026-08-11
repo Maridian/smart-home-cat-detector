@@ -47,11 +47,11 @@ def benchmark():
     main()
 
 
-def live_detect():
+def live_detect(debug=False):
     """Run live detection on RTSP stream"""
     from src.live_monitoring.start_monitoring import main
     print("=== Live Detection Started ===")
-    main()
+    main(debug=debug)
 
 
 def main():
@@ -66,6 +66,7 @@ Examples:
   python main.py validate     # Validate the model
   python main.py benchmark    # Run performance benchmark
   python main.py live         # Start live detection
+  python main.py live --debug # Test webhook without live stream
 
 For full documentation see README.md
         """
@@ -77,6 +78,12 @@ For full documentation see README.md
         help='Function to execute'
     )
     
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug mode (for live command: test webhook without stream)'
+    )
+    
     args = parser.parse_args()
     
     commands = {
@@ -85,7 +92,7 @@ For full documentation see README.md
         'train': train,
         'validate': validate,
         'benchmark': benchmark,
-        'live': live_detect
+        'live': lambda: live_detect(debug=args.debug)
     }
     
     try:
