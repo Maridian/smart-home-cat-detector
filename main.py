@@ -54,6 +54,13 @@ def live_detect(debug=False):
     main(debug=debug)
 
 
+def export_model():
+    """Export model for deployment (Raspberry Pi)"""
+    from src.models.export_model import main
+    print("=== Model Export Started ===")
+    main([])  # Pass empty list to use defaults
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Smart Home Cat Detector - Central Control",
@@ -65,6 +72,7 @@ Examples:
   python main.py train        # Train the model
   python main.py validate     # Validate the model
   python main.py benchmark    # Run performance benchmark
+  python main.py export       # Export model for Raspberry Pi
   python main.py live         # Start live detection
   python main.py live --debug # Test webhook without live stream
 
@@ -74,7 +82,7 @@ For full documentation see README.md
     
     parser.add_argument(
         'command',
-        choices=['collect', 'label', 'train', 'validate', 'benchmark', 'live'],
+        choices=['collect', 'label', 'train', 'validate', 'benchmark', 'export', 'live'],
         help='Function to execute'
     )
     
@@ -92,6 +100,7 @@ For full documentation see README.md
         'train': train,
         'validate': validate,
         'benchmark': benchmark,
+        'export': export_model,
         'live': lambda: live_detect(debug=args.debug)
     }
     

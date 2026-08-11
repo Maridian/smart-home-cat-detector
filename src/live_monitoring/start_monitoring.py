@@ -31,11 +31,29 @@ load_env_config()
 
 # Configuration
 PROJECT_ROOT = get_project_root()
-MODEL_PATH = PROJECT_ROOT / "models" / "trained" / "cat_yolov8n.pt"
 
-if not MODEL_PATH.exists():
-    # Fallback to root directory
-    MODEL_PATH = PROJECT_ROOT / "cat_yolov8n.pt"
+# Auto-detect model (supports .pt, .onnx, .tflite, .ncnn)
+MODEL_PATH_ENV = os.getenv("MODEL_PATH")
+if MODEL_PATH_ENV:
+    MODEL_PATH = Path(MODEL_PATH_ENV)
+else:
+    # Try to find any trained model
+    model_candidates = [
+        PROJECT_ROOT / "models" / "trained" / "cat_yolov8n.pt",
+        PROJECT_ROOT / "models" / "trained" / "cat_yolov8n.onnx",
+        PROJECT_ROOT / "models" / "trained" / "best.pt",
+        PROJECT_ROOT / "models" / "trained" / "best.onnx",
+        PROJECT_ROOT / "cat_yolov8n.pt",
+        PROJECT_ROOT / "cat_yolov8n.onnx",
+    ]
+    MODEL_PATH = None
+    for candidate in model_candidates:
+        if candidate.exists():
+            MODEL_PATH = candidate
+            break
+    
+    if MODEL_PATH is None:
+        MODEL_PATH = PROJECT_ROOT / "models" / "trained" / "cat_yolov8n.pt"  # Fallback
 
 RTSP_URL = os.getenv("RTSP_URL")
 if not RTSP_URL:
@@ -178,7 +196,9 @@ def main(debug=False):
         print(f"        Please train the model first: python main.py train")
         return
     
-    print("Loading model...")
+        print(f"Loading model: {MODEL_PATH}")
+    model_suffix = MODEL_PATH.suffix.lower()
+    print(f"Model format: {model_suffix if model_suffix else 'directory (ncnn)'}")
     model = YOLO(str(MODEL_PATH))
 
     print(f"Connecting to RTSP stream...")
@@ -284,14 +304,19 @@ def main(debug=False):
             cv2.LINE_AA
         )
 
-        # Display window (only if not in headless mode)
-        try:
-            cv2.imshow("Smart Home Cat Detector", annotated_frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        except cv2.error:
-            # Headless mode - no display available
-            time.sleep(0.01)  # Small delay to prevent CPU overload
+                # Display window (only if not in headless mode)
+        # Skip display on Raspberry Pi or headless systems
+        if os.getenv("DISPLAY") and not os.getenv("HEADLESS_MODE"):
+            try:
+                cv2.imshow("Smart Home Cat Detector", annotated_frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            except cv2.error:
+                # Display not available
+                time.sleep(0.01)
+        else:
+            # Headless mode - no display
+            time.sleep(0.01)
             
     cap.release()
     cv2.destroyAllWindows()
