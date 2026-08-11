@@ -27,6 +27,8 @@ services:
       - RTSP_URL=${RTSP_URL:-0}
       - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.30}
       - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - IMAGE_SAVE_PATH=${IMAGE_SAVE_PATH:-/mnt/usb/cat_detections}
+      - NOTIFICATION_COOLDOWN=${NOTIFICATION_COOLDOWN:-60}
       - PYTHONUNBUFFERED=1
     
     # Network mode host for local camera access

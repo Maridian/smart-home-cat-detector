@@ -34,5 +34,5 @@ ENV PYTHONUNBUFFERED=1
 ENV DETECTION_CONFIDENCE=0.30
 ENV RTSP_URL=0
 
-# Run the live detector
-CMD ["python", "-m", "src.live_detector.live_detector"]
+# Run the detector
+CMD ["python", "-m", "src.detector.detector"]

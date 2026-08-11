@@ -4,7 +4,7 @@ import time
 import cv2
 
 from src.utils.config import setup_project_path, get_project_root, load_env_config
-from src.capture.rtsp_stream import RTSPStream
+from src.utils.rtsp_stream import RTSPStream
 from src.models.detector import CatDetector
 
 # Setup paths
@@ -36,7 +36,7 @@ def main():
     img_count = 0
 
     print("\nData collection started.")
-    print("Saving images with cat ONLY when no human is detected...")
+    print("Saving images whenever a cat is detected...")
     print("Press 'q' in the preview window to quit.\n")
 
     try:
@@ -56,7 +56,7 @@ def main():
                 # Save raw unannotated image for training dataset
                 cv2.imwrite(filename, frame)
                 img_count += 1
-                print(f"[{img_count}] Cat detected without human ({conf:.1f}%)! Saved: {filename}")
+                print(f"[{img_count}] Cat detected ({conf:.1f}%)! Saved: {filename}")
                 last_saved_time = current_time
 
             # Show live stream preview

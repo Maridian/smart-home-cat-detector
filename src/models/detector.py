@@ -12,13 +12,13 @@ class CatDetector:
     def process_frame(self, frame):
         """
         Runs inference and returns:
-        - should_save (bool): True if a cat is detected AND no human is in frame
+        - should_save (bool): True if a cat is detected
         - best_conf (float): Highest confidence percentage for detected cat
         - annotated_frame: Frame with drawn bounding boxes for display
         """
         results = self.model(
             frame, 
-            classes=[self.PERSON_CLASS_ID, self.CAT_CLASS_ID], 
+            classes=[self.CAT_CLASS_ID],  # Only detect cats
             conf=self.conf_threshold, 
             verbose=False
         )
@@ -26,7 +26,6 @@ class CatDetector:
         detected_classes = [int(box.cls[0]) for box in boxes] if len(boxes) > 0 else []
 
         has_cat = self.CAT_CLASS_ID in detected_classes
-        has_human = self.PERSON_CLASS_ID in detected_classes
 
         best_conf = 0.0
         if has_cat:
@@ -34,6 +33,6 @@ class CatDetector:
             best_conf = max(cat_confs) * 100
 
         annotated_frame = results[0].plot()
-        should_save = has_cat and not has_human
+        should_save = has_cat  # Save whenever cat is detected
 
         return should_save, best_conf, annotated_frame

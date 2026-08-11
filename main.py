@@ -21,7 +21,7 @@ def collect_data():
 
 def auto_label():
     """Automatically label collected images"""
-    from src.dataset.auto_label import main
+    from src.labeling.auto_label import main
     print("=== Auto-Labeling Started ===")
     main()
 
@@ -49,7 +49,7 @@ def benchmark():
 
 def live_detect():
     """Run live detection on RTSP stream"""
-    from src.live_detector.live_detector import main
+    from src.live_monitoring.start_monitoring import main
     print("=== Live Detection Started ===")
     main()
 
