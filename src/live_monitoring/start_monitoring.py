@@ -84,7 +84,7 @@ def send_telegram_notification(image_path, confidence):
         # Send photo with caption
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
         
-        caption = f"🐱 Katze erkannt!\nConfidence: {confidence:.2f}\nTime: {datetime.now().strftime('%H:%M:%S')}"
+        caption = f"🐱 Fussel detected!\nConfidence: {confidence:.2f}\nTime: {datetime.now().strftime('%H:%M:%S')}"
         
         with open(image_path, 'rb') as photo:
             files = {'photo': photo}
