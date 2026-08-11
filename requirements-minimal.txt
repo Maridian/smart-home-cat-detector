@@ -1,0 +1,11 @@
+# Minimal dependencies for live detection only
+# Install with: pip install -r requirements-minimal.txt
+
+# Core dependencies
+ultralytics>=8.0.0
+opencv-python-headless>=4.8.0
+pillow>=10.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Note: torch, torchvision, and numpy will be auto-installed by ultralytics
