@@ -1,4 +1,4 @@
-"""Live cat detection on RTSP stream or webcam with Telegram notifications"""
+"""Live cat detection on RTSP stream with Telegram notifications"""
 import os
 import sys
 import time
@@ -37,7 +37,9 @@ if not MODEL_PATH.exists():
     # Fallback to root directory
     MODEL_PATH = PROJECT_ROOT / "cat_yolov8n.pt"
 
-RTSP_URL = os.getenv("RTSP_URL", "0")
+RTSP_URL = os.getenv("RTSP_URL")
+if not RTSP_URL:
+    raise ValueError("RTSP_URL must be set in .env file")
 CONF_THRESHOLD = float(os.getenv("DETECTION_CONFIDENCE", "0.30"))
 IMAGE_SAVE_PATH = Path(os.getenv("IMAGE_SAVE_PATH", "/mnt/usb/cat_detections"))
 NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "60"))  # seconds
@@ -179,10 +181,8 @@ def main(debug=False):
     print("Loading model...")
     model = YOLO(str(MODEL_PATH))
 
-    print(f"Connecting to stream...")
-    # Handle webcam (0) or RTSP URL
-    stream_source = int(RTSP_URL) if RTSP_URL.isdigit() else RTSP_URL
-    cap = cv2.VideoCapture(stream_source)
+    print(f"Connecting to RTSP stream...")
+    cap = cv2.VideoCapture(RTSP_URL)
 
     if not cap.isOpened():
         print(f"[ERROR] Could not open video stream: {RTSP_URL}")
