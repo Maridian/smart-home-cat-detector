@@ -1,11 +1,18 @@
-# Minimal dependencies for live detection only
+# Minimal dependencies for live detection
+# Optimized for Raspberry Pi (CPU-only, no CUDA)
 # Install with: pip install -r requirements-minimal.txt
 
 # Core dependencies
-ultralytics>=8.0.0
+numpy>=1.23.0
 opencv-python-headless>=4.8.0
 pillow>=10.0.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 
-# Note: torch, torchvision, and numpy will be auto-installed by ultralytics
+# PyTorch CPU-only (much smaller, no CUDA/GPU packages)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Ultralytics - install AFTER torch to use CPU version
+ultralytics>=8.0.0
