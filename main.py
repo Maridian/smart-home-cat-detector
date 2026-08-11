@@ -12,11 +12,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def collect_data():
+def collect_data(force=False):
     """Start data collection from RTSP camera"""
     from src.data_collection.collect_data import main
-    print("=== Data Collection Started ===")
-    main()
+    if force:
+        print("=== Data Collection Started (FORCE MODE - No Detection) ===")
+    else:
+        print("=== Data Collection Started ===")
+    main(force=force)
 
 
 def auto_label():
@@ -67,14 +70,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py collect      # Collect data from RTSP stream
-  python main.py label        # Auto-label collected images
-  python main.py train        # Train the model
-  python main.py validate     # Validate the model
-  python main.py benchmark    # Run performance benchmark
-  python main.py export       # Export model for Raspberry Pi
-  python main.py live         # Start live detection
-  python main.py live --debug # Test webhook without live stream
+  python main.py collect             # Collect data from RTSP stream (when cat detected)
+  python main.py collect --force     # Collect ALL frames (for negative samples)
+  python main.py label               # Auto-label collected images
+  python main.py train               # Train the model
+  python main.py validate            # Validate the model
+  python main.py benchmark           # Run performance benchmark
+  python main.py export              # Export model for Raspberry Pi
+  python main.py live                # Start live detection
+  python main.py live --debug        # Test webhook without live stream
 
 For full documentation see README.md
         """
@@ -92,10 +96,16 @@ For full documentation see README.md
         help='Enable debug mode (for live command: test webhook without stream)'
     )
     
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force mode (for collect command: save all frames without detection)'
+    )
+    
     args = parser.parse_args()
     
     commands = {
-        'collect': collect_data,
+        'collect': lambda: collect_data(force=args.force),
         'label': auto_label,
         'train': train,
         'validate': validate,
