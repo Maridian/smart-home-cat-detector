@@ -36,11 +36,11 @@ def train():
     main()
 
 
-def validate():
+def validate(model=None):
     """Validate trained model"""
     from src.benchmark.val import main
     print("=== Validation Started ===")
-    main()
+    main(model_name=model)
 
 
 def benchmark():
@@ -102,13 +102,20 @@ For full documentation see README.md
         help='Force mode (for collect command: save all frames without detection)'
     )
     
+    parser.add_argument(
+        '--model',
+        type=str,
+        default=None,
+        help='Model filename for validation (e.g., cat_yolov8n_20250108_143022.pt)'
+    )
+    
     args = parser.parse_args()
     
     commands = {
         'collect': lambda: collect_data(force=args.force),
         'label': auto_label,
         'train': train,
-        'validate': validate,
+        'validate': lambda: validate(model=args.model),
         'benchmark': benchmark,
         'export': export_model,
         'live': lambda: live_detect(debug=args.debug)
