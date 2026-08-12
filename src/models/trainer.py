@@ -58,7 +58,7 @@ def main():
         plots=True
     )
 
-    # Export best weights with versioning
+        # Export best weights with versioning
     best_weights_path = OUTPUT_DIR / "cat_yolov8n" / "weights" / "best.pt"
     trained_models_dir = PROJECT_ROOT / "models" / "trained"
     
@@ -73,25 +73,17 @@ def main():
         # Save versioned model
         shutil.copy(best_weights_path, versioned_path)
         
-        # Update symlink to latest model
-        latest_link = trained_models_dir / "cat_yolov8n.pt"
-        if latest_link.exists() or latest_link.is_symlink():
-            latest_link.unlink()
-        
-        # Create symlink (cross-platform compatible)
-        try:
-            os.symlink(versioned_filename, str(latest_link))
-        except OSError:
-            # Fallback: copy file if symlink not supported (Windows without admin)
-            shutil.copy(versioned_path, latest_link)
+        # Also copy to default name (cat_yolov8n.pt) - always the latest
+        default_path = trained_models_dir / "cat_yolov8n.pt"
+        shutil.copy(best_weights_path, default_path)
         
         print("\n" + "="*60)
         print("TRAINING COMPLETE")
         print("="*60)
         print(f"Versioned model saved to:")
         print(f"  {versioned_path}")
-        print(f"\nLatest model link:")
-        print(f"  {latest_link} -> {versioned_filename}")
+        print(f"\nDefault model (latest):")
+        print(f"  {default_path}")
         print(f"\nTraining results available at:")
         print(f"  {OUTPUT_DIR / 'cat_yolov8n'}")
         print("="*60)
