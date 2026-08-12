@@ -111,7 +111,7 @@ def collect_force():
             # Save frame at interval (no detection needed)
             if current_time - last_saved_time >= INTERVAL_SECONDS:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
-                filename = os.path.join(OUTPUT_DIR, f"frame_{timestamp}.jpg")
+                filename = os.path.join(OUTPUT_DIR, f"cat_{timestamp}.jpg")
 
                 cv2.imwrite(filename, frame)
                 img_count += 1

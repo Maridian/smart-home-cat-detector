@@ -2,6 +2,7 @@
 import shutil
 import random
 from pathlib import Path
+import cv2
 from ultralytics import YOLO
 
 from src.utils.config import get_project_root
@@ -11,6 +12,7 @@ PROJECT_ROOT = get_project_root()
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 ANNOTATED_DIR = PROJECT_ROOT / "data" / "annotated"
 EXPORTS_DIR = PROJECT_ROOT / "data" / "exports"
+MANUAL_REVIEW_DIR = ANNOTATED_DIR / "manual_review"
 
 TRAIN_RATIO = 0.8  # 80% train, 20% validation
 COCO_CAT_CLASS_ID = 15
@@ -22,6 +24,7 @@ def setup_directories():
         (ANNOTATED_DIR / split / "images").mkdir(parents=True, exist_ok=True)
         (ANNOTATED_DIR / split / "labels").mkdir(parents=True, exist_ok=True)
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    MANUAL_REVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
 def create_data_yaml():
     """Generates the data.yaml file required for YOLO training."""
@@ -106,6 +109,29 @@ def main():
                 print(f"  [✓] Saved preview image to: {preview_path}")
                 preview_saved = True
 
+            # Save annotated image to manual review folder (only cats)
+            review_img_path = MANUAL_REVIEW_DIR / img_path.name
+            img = cv2.imread(str(img_path))
+            
+            # Draw only cat bounding boxes
+            for box in results.boxes:
+                class_id = int(box.cls[0])
+                if class_id == COCO_CAT_CLASS_ID:
+                    # Get box coordinates in pixel values
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                    confidence = float(box.conf[0])
+                    
+                    # Draw bounding box
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    
+                    # Draw label with confidence
+                    label = f"cat {confidence:.2f}"
+                    (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                    cv2.rectangle(img, (x1, y1 - label_h - 10), (x1 + label_w, y1), (0, 255, 0), -1)
+                    cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+            
+            cv2.imwrite(str(review_img_path), img)
+
             # Copy image to target path
             target_img_path = ANNOTATED_DIR / split / "images" / img_path.name
             shutil.copy(img_path, target_img_path)
@@ -126,6 +152,8 @@ def main():
     print(f"Average cats per image:  {cat_detected_total/images_with_cats if images_with_cats > 0 else 0:.2f}")
     print(f"\nDataset location: {ANNOTATED_DIR}")
     print(f"Config file:      {ANNOTATED_DIR / 'data.yaml'}")
+    print(f"Manual review:    {MANUAL_REVIEW_DIR}")
+    print("\n[i] Check the manual_review folder to verify labels visually.")
     print("="*50)
 
 if __name__ == "__main__":
