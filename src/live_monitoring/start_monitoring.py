@@ -211,7 +211,7 @@ def main(debug=False):
     print("\n[✓] Live detector running. Press 'q' to quit.\n")
 
     cat_detected_prev = None
-    last_notification_time = 0
+    last_notification_time = 0.0
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -219,7 +219,7 @@ def main(debug=False):
             print("[!] Failed to grab frame. Reconnecting...")
             time.sleep(2)
             cap.release()
-            cap = cv2.VideoCapture(stream_source)
+            cap = cv2.VideoCapture(RTSP_URL)
             continue
 
         # Run inference
@@ -246,19 +246,24 @@ def main(debug=False):
                 timestamp = time.strftime('%H:%M:%S')
                 print(f"[{timestamp}] 🐱 CAT DETECTED! (Confidence: {highest_conf:.2f})")
             
-            # Send notification with cooldown (continuous while cat is detected)
+                        # Send notification with cooldown (continuous while cat is detected)
             current_time = time.time()
             time_since_last = current_time - last_notification_time
             
-            if time_since_last >= NOTIFICATION_COOLDOWN:
-                print(f"[→] Cooldown passed ({time_since_last:.0f}s), sending notification...")
+            # Only send notification if cooldown passed AND we have sent at least one before
+            # OR if this is the first notification (last_notification_time == 0)
+            if last_notification_time == 0.0 or time_since_last >= NOTIFICATION_COOLDOWN:
+                if last_notification_time > 0.0:
+                    print(f"[→] Cooldown passed ({time_since_last:.0f}s), sending notification...")
+                else:
+                    print(f"[→] First detection, sending notification...")
+                
                 # Save image
                 image_path = save_detection_image(annotated_frame, results.boxes, highest_conf)
                 
-                                # Send Telegram notification
-                if send_telegram_notification(image_path, highest_conf):
+                # Send Telegram notification
+                if image_path and send_telegram_notification(image_path, highest_conf):
                     last_notification_time = current_time
-            # Removed cooldown message to reduce spam
                 
         else:
             # No cat detected - log state change only
