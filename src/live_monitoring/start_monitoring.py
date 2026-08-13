@@ -61,6 +61,7 @@ if not RTSP_URL:
 CONF_THRESHOLD = float(os.getenv("DETECTION_CONFIDENCE", "0.30"))
 IMAGE_SAVE_PATH = Path(os.getenv("IMAGE_SAVE_PATH", "/mnt/usb/cat_detections"))
 NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "60"))  # seconds
+HEARTBEAT_TIMER = int(os.getenv("HEARTBEAT_TIMER", "3600"))  # seconds (default: 1 hour)
 
 # Telegram Config
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -90,6 +91,24 @@ def save_detection_image(frame, boxes, confidence):
     except Exception as e:
         print(f"[ERROR] Failed to save image: {type(e).__name__}: {e}")
         return None
+
+
+def send_telegram_message(message):
+    """Send text message via Telegram"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return False
+    
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = {
+            'chat_id': TELEGRAM_CHAT_ID,
+            'text': message
+        }
+        response = requests.post(url, data=data, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"[ERROR] Failed to send message: {type(e).__name__}: {e}")
+        return False
 
 
 def send_telegram_notification(image_path, confidence):
@@ -184,6 +203,7 @@ def main(debug=False):
         print(f"  Chat ID:   {TELEGRAM_CHAT_ID}")
     print(f"Images:      {IMAGE_SAVE_PATH}")
     print(f"Cooldown:    {NOTIFICATION_COOLDOWN}s")
+    print(f"Heartbeat:   {HEARTBEAT_TIMER}s ({HEARTBEAT_TIMER//60} min)")
     print_device_info()
     
         # Run debug mode if enabled
@@ -212,6 +232,7 @@ def main(debug=False):
 
     cat_detected_prev = None
     last_notification_time = 0.0
+    last_heartbeat_time = time.time()  # Initialize heartbeat timer
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -271,7 +292,21 @@ def main(debug=False):
                 timestamp = time.strftime('%H:%M:%S')
                 print(f"[{timestamp}] ❌ No cat detected")
         
-        cat_detected_prev = cat_detected
+                cat_detected_prev = cat_detected
+
+        # Heartbeat: Send periodic status update if no cat detected for a while
+        current_time_heartbeat = time.time()
+        time_since_last_heartbeat = current_time_heartbeat - last_heartbeat_time
+        
+        if not cat_detected and time_since_last_heartbeat >= HEARTBEAT_TIMER:
+            timestamp_hb = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            heartbeat_msg = f"💓 Heartbeat\n\nSystem running normally\nNo cat detected\nTime: {timestamp_hb}"
+            print(f"[{time.strftime('%H:%M:%S')}] 💓 Sending heartbeat message...")
+            if send_telegram_message(heartbeat_msg):
+                print(f"[✓] Heartbeat sent successfully")
+                last_heartbeat_time = current_time_heartbeat
+            else:
+                print(f"[!] Heartbeat failed to send")
 
         # Status overlay (top-right)
         text_str = "CAT DETECTED" if cat_detected else "NO CAT"
