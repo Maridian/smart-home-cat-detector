@@ -26,8 +26,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Only the minimal dependencies for live operation (CPU-only, ARM)
+# NOTE: ultralytics pulls in the GUI build (opencv-python), which needs X11
+# libs (libxcb) not present in this slim headless image -> import cv2 breaks.
+# Reinstall headless afterwards so it wins (no-deps, forced).
 COPY requirements-minimal.txt .
-RUN pip install --no-cache-dir -r requirements-minimal.txt
+RUN pip install --no-cache-dir -r requirements-minimal.txt \
+    && pip install --no-cache-dir --force-reinstall --no-deps "opencv-python-headless>=4.8.0"
 
 # Copy source code plus trained model into the image.
 # (.pt files are excluded via .dockerignore -> only ONNX ends up in the image)
@@ -46,6 +50,7 @@ ENV DETECTION_CONFIDENCE=0.30
 # Run as non-root user (uid 1000 = default user "pi" on the Pi)
 RUN useradd --create-home --uid 1000 appuser \
     && chown -R appuser:appuser /app /home/admin123/cat_detections
+
 USER appuser
 
 # Start the live detector (equivalent to: python main.py live)
