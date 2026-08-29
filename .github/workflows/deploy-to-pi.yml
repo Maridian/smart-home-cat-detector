@@ -6,7 +6,7 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -15,8 +15,20 @@ jobs:
         run: |
           mkdir -p models/trained
           mkdir -p logs
-          sudo mkdir -p /mnt/usb
+          sudo mkdir -p /home/admin123/cat_detections
         continue-on-error: true
+
+      # Variante A: non-secret runtime config (config.env) is committed and
+      # arrives via checkout automatically. Only the real secrets are read
+      # here from GitHub and written to the gitignored .env file.
+      - name: Create .env from secrets
+        run: |
+          cat > .env <<'EOF'
+          RTSP_URL=${{ secrets.RTSP_URL }}
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+          EOF
+          chmod 600 .env
 
       - name: Stop existing container
         run: |
@@ -27,11 +39,8 @@ jobs:
         run: |
           docker build -t cat-detector:latest .
 
+      # docker compose reads config.env (committed) + .env (from step above)
       - name: Start container
-        env:
-          WEBHOOK_URL: ${{ secrets.HA_WEBHOOK_URL }}
-          RTSP_URL: ${{ secrets.RTSP_URL }}
-          DETECTION_CONFIDENCE: ${{ secrets.DETECTION_CONFIDENCE }}
         run: |
           docker compose up -d
 
@@ -51,7 +60,7 @@ jobs:
 
       - name: Deployment summary
         run: |
-          echo "✅ Deployment completed successfully!"
+          echo "Deployment completed successfully!"
           echo "Container: cat_detector"
           echo "Status: $(docker inspect -f '{{.State.Status}}' cat_detector)"
           echo "Started at: $(docker inspect -f '{{.State.StartedAt}}' cat_detector)"

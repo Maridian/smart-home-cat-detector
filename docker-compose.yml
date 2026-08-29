@@ -1,42 +1,37 @@
-version: '3.8'
+# Smart Home Cat Detector - Live operation on Raspberry Pi
+#
+# Config sources (loaded directly into the container via env_file):
+#   config.env -> COMMITTED, non-secret runtime configuration
+#   .env       -> SECRETS only, NEVER committed (created on the Pi / by CI)
+#
+# Later env_file entries override earlier ones, so secrets in .env
+# win over defaults in config.env in case of name collisions.
 
 services:
   cat-detector:
     build: .
     container_name: cat_detector
     restart: unless-stopped
-    
-    # Privileged mode for camera access (optional, if needed)
-    # privileged: true
-    
-    # Camera device mapping (for USB webcam)
-    devices:
-      - /dev/video0:/dev/video0
-    
-    # Volumes
+
+    # All config + secrets reach the container here.
+    # (An `environment:` mapping is NOT needed: env_file passes every
+    # variable into the container process directly - including RTSP_URL,
+    # TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.)
+    env_file:
+      - config.env
+      - .env
+
+    # Detection images: persist the host folder /home/admin123/cat_detections
     volumes:
-      # Trained model
-      - ./models:/app/models
-      # USB stick for images
-      - /mnt/usb:/mnt/usb
-      # Config and logs
-      - ./logs:/app/logs
-    
-    # Environment Variables
-    environment:
-      - RTSP_URL=${RTSP_URL:-0}
-      - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.30}
-      - WEBHOOK_URL=${WEBHOOK_URL:-}
-      - IMAGE_SAVE_PATH=${IMAGE_SAVE_PATH:-/mnt/usb/cat_detections}
-      - NOTIFICATION_COOLDOWN=${NOTIFICATION_COOLDOWN:-60}
-      - PYTHONUNBUFFERED=1
-    
-    # Network mode host for local camera access
+      - /home/admin123/cat_detections:/home/admin123/cat_detections
+
+    # Host networking: required to reach local RTSP cameras easily
     network_mode: host
-    
-    # Logging
+
+    # Keep log size small on the Pi (SD card space)
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+

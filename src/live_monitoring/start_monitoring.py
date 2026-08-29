@@ -59,7 +59,7 @@ RTSP_URL = os.getenv("RTSP_URL")
 if not RTSP_URL:
     raise ValueError("RTSP_URL must be set in .env file")
 CONF_THRESHOLD = float(os.getenv("DETECTION_CONFIDENCE", "0.30"))
-IMAGE_SAVE_PATH = Path(os.getenv("IMAGE_SAVE_PATH", "/mnt/usb/cat_detections"))
+IMAGE_SAVE_PATH = Path(os.getenv("IMAGE_SAVE_PATH", str(PROJECT_ROOT / "detections")))
 NOTIFICATION_COOLDOWN = int(os.getenv("NOTIFICATION_COOLDOWN", "60"))  # seconds
 HEARTBEAT_TIMER = int(os.getenv("HEARTBEAT_TIMER", "3600"))  # seconds (default: 1 hour)
 
@@ -70,7 +70,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 DEVICE = get_device()
 
 def save_detection_image(frame, boxes, confidence):
-    """Save detection image to USB stick and return the file path"""
+    """Save detection image and return the file path"""
     try:
         IMAGE_SAVE_PATH.mkdir(parents=True, exist_ok=True)
         

@@ -38,9 +38,17 @@ runs/
 logs/
 *.log
 
-# Environment
+# Environment (secrets; config is injected at runtime via env_file / --env-file)
+.env
 .env.local
 .env.*.local
+
+# Virtual environments
+.venv/
+venv/
+
+# Trained model weights (too large; only the exported ONNX model is shipped via COPY)
+*.pt
 
 # OS
 .DS_Store
