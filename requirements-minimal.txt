@@ -16,3 +16,10 @@ torchvision>=0.15.0
 
 # Ultralytics - install AFTER torch to use CPU version
 ultralytics>=8.0.0
+
+# ONNX runtime inference (used for the exported cat_yolov8n.onnx model)
+# Required at build time - otherwise ultralytics tries a runtime
+# "AutoUpdate" (pip install) that fails for the non-root appuser.
+onnx>=1.14.0
+onnxruntime>=1.16.0
+

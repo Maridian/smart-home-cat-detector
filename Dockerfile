@@ -46,6 +46,8 @@ RUN mkdir -p /home/admin123/cat_detections
 ENV PYTHONUNBUFFERED=1
 ENV HEADLESS_MODE=1
 ENV DETECTION_CONFIDENCE=0.30
+# Never let ultralytics pip-install at runtime (non-root user, no write perms)
+ENV YOLO_AUTOINSTALL=false
 
 # Run as non-root user (uid 1000 = default user "pi" on the Pi)
 RUN useradd --create-home --uid 1000 appuser \
@@ -55,3 +57,4 @@ USER appuser
 
 # Start the live detector (equivalent to: python main.py live)
 CMD ["python", "main.py", "live"]
+
