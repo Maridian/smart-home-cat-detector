@@ -1,388 +1,215 @@
 # Smart Home Cat Detector 🐱
 
-A streamlined Deep Learning system for real-time cat detection using YOLOv8, featuring automated data collection, training, validation, benchmarking, and live detection with Telegram notifications.
+A YOLOv8 cat detector that runs on a Raspberry Pi: it watches an RTSP camera stream, detects cats in real time and sends you a Telegram notification with the annotated image.
 
-## ✨ Features
+## How it works
 
-- **Automated Data Collection**: Capture and save images with cats from RTSP camera streams
-- **Auto-Labeling**: Automatically generate YOLO-format labels using pretrained YOLOv8m
-- **Custom Training**: Train YOLOv8n model on your collected dataset
-- **Model Validation**: Evaluate model performance with detailed metrics
-- **Performance Benchmarking**: Measure latency and FPS on CPU and GPU
-- **Live Detection**: Real-time cat detection on RTSP streams or webcam
-- **Telegram Notifications**: Get instant notifications with images when cats are detected
-- **Centralized CLI**: Single entry point for all operations
+- Code, Docker setup and the exported model (`models/trained/cat_yolov8n.onnx`) live in this repository — the ONNX model is baked into the Docker image.
+- A **self-hosted GitHub Actions runner** on the Raspberry Pi runs the deploy workflow.
+- The workflow builds the image directly **on the Pi**, writes the secrets from GitHub into `.env` and starts the container with `docker compose up -d`.
+- The container runs with `restart: unless-stopped` → it starts automatically on boot and restarts after crashes.
 
-## 📋 Requirements
+## Use cases & required steps
 
-- Python 3.8+
-- CUDA-capable GPU (optional, for faster training and inference)
-- RTSP camera or webcam
-- Telegram account (for notifications)
+Different goals need different steps — here is the overview:
 
-## 🚀 Quick Start
+| Use case | Steps | Where |
+|---|---|---|
+| **Live detection** (model already trained, in the repo) | Raspberry Pi setup → Config → Deploy via GitHub Actions | Tutorial below |
+| **Retrain the model** (own data / better accuracy) | `collect` → `label` → `train` → `validate` → `export` → Deploy | PC → Pi |
+| **Test / compare performance** (optional) | `train` (or existing model) + `benchmark` + `validate` | PC |
+| **Test Telegram** (no camera/stream) | `live --debug` | PC |
 
-### 1. Installation
+All `python main.py <command>` steps run on **your PC** (GPU optional, only speeds up training) — not on the Pi. The Pi only runs the exported ONNX model inside the Docker container.
 
-```bash
-# Clone repository
-git clone https://github.com/your-username/smart-home-cat-detector.git
-cd smart-home-cat-detector
+### Workflow 1 — Live detection (no training, recommended)
 
-# Create virtual environment
-python -m venv .venv
+The model `models/trained/cat_yolov8n.onnx` is already in the repo. All you need: [Raspberry Pi setup](#raspberry-pi-setup-one-time) → [Configuration](#configuration) → [Deploy via GitHub Actions](#deploy-via-github-actions). No training required.
 
-# Activate virtual environment
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
+### Workflow 2: Train a model and roll it out on the Pi
 
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 2. Configuration
-
-Create a `.env` file in the project root:
+Train your own model on your cat images and then deploy it to the Pi via GitHub Actions:
 
 ```bash
-# Camera source (0 for webcam, or RTSP URL)
-RTSP_URL=0
-
-# Detection confidence threshold (0.0 - 1.0)
-DETECTION_CONFIDENCE=0.60
-
-# Telegram Bot Token (get from @BotFather)
-TELEGRAM_BOT_TOKEN=your_token_here
-
-# Telegram Chat ID (get from bot API)
-TELEGRAM_CHAT_ID=your_chat_id_here
-
-# Path where detection images are saved
-IMAGE_SAVE_PATH=./detections
-
-# Cooldown between notifications (seconds)
-NOTIFICATION_COOLDOWN=60
-```
-
-### 3. Setup Telegram Bot
-
-1. Open Telegram and search for **@BotFather**
-2. Send `/newbot` and follow instructions
-3. Copy the **Bot Token** to your `.env`
-4. Send a message to your bot
-5. Get your **Chat ID** from: `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
-6. Add the Chat ID to your `.env`
-
-## 📖 Usage
-
-All functionality is accessible through the central `main.py` script:
-
-```bash
-python main.py <command>
-```
-
-### Available Commands
-
-#### 1. Collect Data
-Collect training images from your camera:
-
-```bash
+# 1. Collect training images (RTSP/webcam; saves only frames with cats)
 python main.py collect
-```
+#    Option --force: saves ALL frames (for negative samples)
 
-- Captures frames when a cat is detected (no humans present)
-- Saves images to `data/raw/`
-- Press 'q' to stop collection
-
-#### 2. Auto-Label Data
-Automatically generate YOLO labels for collected images:
-
-```bash
-python main.py label
-```
-
-- Uses pretrained YOLOv8m to detect cats
-- Creates train/val split (80/20)
-- Generates `data.yaml` configuration
-- Outputs to `data/annotated/`
-
-#### 3. Train Model
-Train a custom YOLOv8n model:
-
-```bash
-python main.py train
-```
-
-- Fine-tunes YOLOv8n on your dataset
-- Saves best weights to `models/trained/cat_yolov8n.pt`
-- Training logs in `runs/detect/cat_yolov8n/`
-
-#### 4. Validate Model
-Evaluate model performance:
-
-```bash
-python main.py validate
-```
-
-- Computes precision, recall, mAP metrics
-- Generates confusion matrix and PR curves
-- Results saved to `runs/val/cat_val_results/`
-
-#### 5. Benchmark Performance
-Measure inference speed:
-
-```bash
-python main.py benchmark
-```
-
-- Tests different batch sizes
-- Compares CPU vs GPU performance
-- Saves plots to `data/exports/benchmark_results.png`
-
-#### 6. Live Detection
-Run real-time detection:
-
-```bash
-python main.py live
-```
-
-- Displays live video with bounding boxes
-- Sends Telegram notification with image when cat is detected
-- Respects cooldown period to prevent spam
-- Press 'q' to quit
-
-#### 7. Test Notifications
-Test Telegram without live stream:
-
-```bash
-python main.py live --debug
-```
-
-- Sends a test notification to verify setup
-- No camera/stream required
-- Perfect for testing your configuration
-
-## 📁 Project Structure
-
-```
-smart-home-cat-detector/
-├── main.py                     # Central CLI entry point
-├── requirements.txt            # Python dependencies
-├── .env                        # Configuration (not in git)
-├── .gitignore
-├── README.md
-│
-├── data/
-│   ├── raw/                    # Collected images
-│   ├── annotated/              # Labeled dataset
-│   │   ├── train/
-│   │   │   ├── images/
-│   │   │   └── labels/
-│   │   ├── val/
-│   │   │   ├── images/
-│   │   │   └── labels/
-│   │   └── data.yaml
-│   └── exports/                # Benchmark plots, previews
-│
-├── models/
-│   ├── trained/                # Your trained models
-│   └── exported/               # ONNX/TensorRT exports
-│
-├── runs/
-│   ├── detect/                 # Training logs
-│   └── val/                    # Validation results
-│
-└── src/
-    ├── benchmark/
-    │   ├── benchmark.py        # Performance testing
-    │   └── val.py              # Model validation
-    ├── capture/
-    │   └── rtsp_stream.py      # RTSP stream handler
-    ├── data_collection/
-    │   └── collect_data.py     # Data collection from RTSP
-    ├── dataset/
-    │   ├── auto_label.py       # Auto-labeling
-    │   └── custom_dataset.py   # Dataset utilities
-    ├── live_detector/
-    │   └── live_detector.py    # Live detection
-    ├── models/
-    │   ├── detector.py         # Detection logic
-    │   └── trainer.py          # Training logic
-    └── utils/
-        ├── config.py           # Configuration helpers
-        └── device.py           # Device selection
-```
-
-## 🔄 Complete Workflow
-
-```bash
-# 1. Setup Telegram bot (see Configuration section)
-
-# 2. Test notifications
-python main.py live --debug
-
-# 3. Collect training images (optional - if using pretrained model, skip to step 6)
-python main.py collect
-
-# 4. Generate labels automatically
+# 2. Auto-label + train/val split (80/20)
 python main.py label
 
-# 5. Train the model
+# 3. Train YOLOv8n (best weights → models/trained/cat_yolov8n.pt)
 python main.py train
 
-# 6. Validate performance (optional)
+# 4. Validate (precision, recall, mAP, confusion matrix, PR curves)
 python main.py validate
 
-# 7. Run live detection
-python main.py live
-
-# Optional: Benchmark performance
+# 5. Optional: measure inference speed (CPU vs. GPU, various batch sizes)
 python main.py benchmark
+
+# 6. Export → overwrites models/trained/cat_yolov8n.onnx
+python main.py export
 ```
 
-## 🎯 Model Export
+After step 6: commit/push the new `cat_yolov8n.onnx` and re-run the **Deploy to Raspberry Pi** workflow (see [Update the model](#update-the-model)).
 
-### Export to ONNX (for edge devices)
-
-```python
-from ultralytics import YOLO
-
-model = YOLO('models/trained/cat_yolov8n.pt')
-model.export(format='onnx', imgsz=640)
-```
-
-### Export to TensorRT (for NVIDIA devices)
-
-```python
-model.export(format='engine', device=0, half=True)
-```
-
-## 📱 Telegram Notifications
-
-When a cat is detected, you receive:
-
-- 🐱 **Instant notification** on your phone
-- 📸 **Image with bounding box** showing the detection
-- 📊 **Confidence score** (e.g., 0.85)
-- ⏰ **Timestamp** of detection
-
-### Notification Cooldown
-
-To prevent spam when a cat stays in view, notifications respect a cooldown period (default: 60 seconds). Adjust in `.env`:
+### Workflow 3 — Benchmark & validation
 
 ```bash
-NOTIFICATION_COOLDOWN=300  # 5 minutes
+# Inference speed (FPS/latency) for various batch sizes, CPU vs. GPU
+python main.py benchmark
+# → Plot saved under data/exports/benchmark_results.png
+
+# Model quality (precision, recall, mAP, confusion matrix, PR curves)
+python main.py validate
+# → Results under runs/val/
 ```
 
-## 🐛 Troubleshooting
+### CLI reference (training PC)
 
-### Telegram Not Working
+Everything goes through the central entry point `python main.py <command>` — on your PC with `pip install -r requirements.txt` (the Pi only runs the container):
+
+| Command | What it does |
+|---|---|
+| `collect` | Saves frames from the RTSP/webcam stream when a cat is detected (no humans) → `data/raw/`; `--force` saves all frames (negative samples) |
+| `label` | Auto-labels images with a pretrained YOLOv8m, creates an 80/20 split + `data.yaml` → `data/annotated/` |
+| `train` | Fine-tunes YOLOv8n on your dataset; best weights → `models/trained/cat_yolov8n.pt` |
+| `validate` | Evaluates the model (precision, recall, mAP), generates confusion matrix + PR curves → `runs/val/` |
+| `benchmark` | Measures latency/FPS for various batch sizes (CPU vs. GPU) → plot under `data/exports/benchmark_results.png` |
+| `export` | Converts `cat_yolov8n.pt` → `models/trained/cat_yolov8n.onnx` (goes into the Docker image) |
+| `live` | Live detection (runs automatically on the Pi in the container); `--debug` sends a test notification without a stream |
+
+## Raspberry Pi setup (one-time)
+
+Requirements: Raspberry Pi 4 (4 GB or 8 GB recommended) with **64-bit Raspberry Pi OS**.
+
+### 1. SSH into the Pi
 
 ```bash
-# Test your bot token
-curl https://api.telegram.org/bot<YOUR_TOKEN>/getMe
-
-# Verify Chat ID
-curl https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
-
-# Test notification
-python main.py live --debug
+ssh pi@raspberrypi.local
 ```
 
-### RTSP Connection Issues
+### 2. Update the system
 
 ```bash
-# Test your RTSP stream with VLC
-vlc rtsp://username:password@camera_ip:554/stream1
-
-# Try webcam instead
-# Set in .env: RTSP_URL=0
+sudo apt update && sudo apt upgrade -y
 ```
 
-### Low Detection Accuracy
-
-- Collect more diverse training data (different angles, lighting)
-- Increase training epochs in `src/models/trainer.py`
-- Adjust confidence threshold in `.env`
-
-### GPU Not Detected
+### 3. Install Docker
 
 ```bash
-# Check CUDA installation
-python -c "import torch; print(torch.cuda.is_available())"
-
-# Reinstall PyTorch with CUDA
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
 ```
 
-## 🔧 Advanced Configuration
-
-### Training Hyperparameters
-
-Edit `src/models/trainer.py`:
-
-```python
-EPOCHS = 50          # Increase for better accuracy
-BATCH_SIZE = 16      # Increase if you have more VRAM
-LEARNING_RATE = 0.01 # Adjust learning rate
-IMG_SIZE = 640       # Image size for training
-```
-
-### Detection Confidence
-
-Adjust in `.env`:
+Log out and back in (or reboot), then verify:
 
 ```bash
-DETECTION_CONFIDENCE=0.25  # Lower = more detections, more false positives
+docker --version
+docker compose version
 ```
 
-### Image Storage Path
+### 4. Install the GitHub Actions runner (Linux, ARM64)
 
-Configure where detection images are saved:
+Go to your repository on GitHub: **Settings → Actions → Runners → New self-hosted runner**. Select **Linux / ARM64** and copy the download + configure commands from the dialog:
 
 ```bash
-# Raspberry Pi with USB drive
-IMAGE_SAVE_PATH=/mnt/usb/cat_detections
-
-# Windows
-IMAGE_SAVE_PATH=C:/Users/YourName/cat_detections
-
-# Relative path (in project folder)
-IMAGE_SAVE_PATH=./detections
+mkdir actions-runner && cd actions-runner
+# download and extract (command shown in the GitHub dialog)
+./config.sh --url https://github.com/YOUR_USERNAME/smart-home-cat-detector --token YOUR_TOKEN
 ```
 
-## 📊 Performance Metrics
+Test it once with `./run.sh` (the runner then shows as "idle" in GitHub). For a permanent setup that survives reboots, install it as a service:
 
-Typical performance on YOLOv8n:
+```bash
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
 
-- **CPU (Intel i7)**: ~30-50 FPS
-- **GPU (RTX 3060)**: ~200-300 FPS
-- **Raspberry Pi 4**: ~5-10 FPS (with optimization)
+> **Note:** the model `models/trained/cat_yolov8n.onnx` must be in the repository before the image can be built. It is already part of the repo — replace it when you retrain (see [Update the model](#update-the-model)).
 
-## 📝 License
+## Configuration
 
-MIT License - see LICENSE file for details
+The container gets its configuration from two files via `env_file` in `docker-compose.yml` (later entries win on name collisions):
 
-## 🤝 Contributing
+| File | Contents | Examples |
+|---|---|---|
+| `config.env` (committed) | Non-secret default settings | `DETECTION_CONFIDENCE`, `IMAGE_SAVE_PATH`, `NOTIFICATION_COOLDOWN` |
+| `.env` (never committed) | Secrets — created automatically on the Pi by the deploy workflow | `RTSP_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 
-Contributions welcome! Please:
+> **Important:** detection images are stored at `IMAGE_SAVE_PATH` (default `/home/admin123/cat_detections`). This path must always match the volume mounted in `docker-compose.yml` — otherwise the images are written inside the container and lost when the container is recreated.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+### Add the GitHub secrets
 
-## 🙏 Acknowledgments
+In your repository: **Settings → Secrets and variables → Actions → New repository secret**.
 
-- [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)
-- [PyTorch](https://pytorch.org/)
-- [OpenCV](https://opencv.org/)
+| Secret | Description | Example |
+|---|---|---|
+| `RTSP_URL` | Camera stream URL (`0` for a webcam) | `rtsp://user:pass@192.168.1.100:554/stream` |
+| `TELEGRAM_BOT_TOKEN` | From @BotFather | `123456:ABC...` |
+| `TELEGRAM_CHAT_ID` | Your chat ID | `123456789` |
 
-## 📧 Contact
+**Telegram quick start:** create a bot with **@BotFather** (`/newbot`), send it a message, then read your chat ID from `https://api.telegram.org/bot<TOKEN>/getUpdates` (`"chat":{"id":...}`). The bot must have received at least one message from you.
 
-For questions or issues, please open a GitHub issue.
+## Deploy via GitHub Actions
+
+1. Push your code (including the exported model and any `config.env` changes) to GitHub.
+2. Open the **Actions** tab → **Deploy to Raspberry Pi** → **Run workflow**.
+3. The self-hosted runner on the Pi executes it: checkout → write `.env` from the secrets → `docker compose down` → build image → `docker compose up -d`.
+4. The workflow prints the container status and the last 50 log lines — the "Deployment summary" markers show success/failure.
+
+Check on the Pi:
+
+```bash
+docker compose ps              # status of the container
+docker logs cat_detector --tail 50
+docker logs -f cat_detector    # follow live logs
+```
+
+## Update the model
+
+1. Export the new model as `models/trained/cat_yolov8n.onnx` (on your PC: `python main.py export`).
+2. Commit and push the new file.
+3. Re-run the **Deploy to Raspberry Pi** workflow.
+
+> Retraining? Then follow [Workflow 2: Train a model](#workflow-2-train-a-model-and-roll-it-out-on-the-pi): `collect` → `label` → `train` → `validate` → `export` → Deploy. Step 6 (`export`) automatically overwrites the ONNX file from step 1.
+
+## Useful commands
+
+```bash
+docker compose ps -a                                      # status
+docker logs cat_detector --tail 100                       # recent logs
+docker compose down                                       # stop + remove container (image stays)
+docker inspect cat_detector --format 'Restarts={{.RestartCount}} ExitCode={{.State.ExitCode}}'   # restart count / exit code
+docker exec cat_detector printenv TELEGRAM_CHAT_ID        # what the container actually sees
+docker compose run --rm cat-detector python main.py live  # run in foreground to see errors
+```
+
+## Troubleshooting
+
+### Container stuck in a restart loop
+
+```bash
+docker logs cat_detector --tail 100
+docker inspect cat_detector --format 'Restarts={{.RestartCount}} ExitCode={{.State.ExitCode}}'
+docker compose run --rm cat-detector python main.py live   # foreground = real error message
+```
+
+### Build fails — model not found
+
+The Docker image copies `models/trained/` — if `cat_yolov8n.onnx` is missing or not committed, the build fails. Commit the model file and re-run the workflow.
+
+### Telegram: "chat not found" (HTTP 400)
+
+Detection works but no notification arrives:
+
+1. Press **Start** in your Telegram chat with the bot — bots cannot message users who never started them.
+2. Verify the chat ID via `https://api.telegram.org/bot<TOKEN>/getUpdates` (group IDs are negative, supergroups start with `-100`).
+3. Check what the container really has: `docker exec cat_detector printenv TELEGRAM_CHAT_ID` (no quotes or whitespace).
+
+### Camera/RTSP not reachable
+
+The container uses `network_mode: host`, so it can reach local cameras directly. Verify the RTSP URL (`rtsp://user:pass@ip:554/stream`) with VLC or `ffprobe` on the Pi.
 
 ---
 
